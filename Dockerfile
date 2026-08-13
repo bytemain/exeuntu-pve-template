@@ -138,7 +138,6 @@ RUN rm /etc/systemd/system/multi-user.target.wants/console-setup.service \
 		systemd-ask-password-console.path \
 		systemd-ask-password-wall.path \
 		ssh.socket \
-		ssh.service \
 		plymouth.service \
 		plymouth-start.service \
 		plymouth-quit.service \
@@ -263,6 +262,35 @@ COPY exe-setup.service /etc/systemd/system/exe-setup.service
 RUN chmod 644 /etc/systemd/system/exe-setup.service && \
     systemctl enable exe-setup.service
 
+# PVE provides normal SSH access instead of exe.dev's separate terminal plane.
+# At CT creation it writes the requested public key under root; first boot
+# validates and moves that key to exedev before sshd is allowed to start.
+COPY pve-firstboot.sh /usr/local/sbin/exeuntu-pve-firstboot
+COPY pve-firstboot.service /etc/systemd/system/exeuntu-pve-firstboot.service
+COPY pve-ssh.service.conf /etc/systemd/system/ssh.service.d/20-exeuntu-pve.conf
+COPY pve-sshd.conf /etc/ssh/sshd_config.d/60-exeuntu-pve.conf
+RUN chmod 0755 /usr/local/sbin/exeuntu-pve-firstboot && \
+    chmod 0644 \
+      /etc/systemd/system/exeuntu-pve-firstboot.service \
+      /etc/systemd/system/ssh.service.d/20-exeuntu-pve.conf \
+      /etc/ssh/sshd_config.d/60-exeuntu-pve.conf && \
+    systemctl unmask ssh.service && \
+    systemctl enable ssh.service exeuntu-pve-firstboot.service && \
+    systemctl mask ssh.socket && \
+    # PVE owns mounts; never retain exeuntu's VM /dev/vda root mount. \
+    printf '# PVE manages LXC mounts; intentionally empty.\n' >/etc/fstab && \
+    # Every CT generates unique identity and credentials at first boot. \
+    : >/etc/machine-id && \
+    rm -f \
+      /var/lib/dbus/machine-id \
+      /var/lib/systemd/random-seed \
+      /root/.ssh/authorized_keys \
+      /home/exedev/.ssh/authorized_keys \
+      /etc/ssh/ssh_host_* && \
+    # Public-key SSH is the sole normal login path. \
+    sed -i -E 's#^root:[^:]*:#root:!:#' /etc/shadow && \
+    sed -i -E 's#^exedev:[^:]*:#exedev:!:#' /etc/shadow
+
 # TODO(crawshaw/philip): This is called init so that exetini decides
 # this wrapper script is an init, and exec's it rather than forking it.
 # It would be better if you could indicate that via an env variable or something.
@@ -346,4 +374,5 @@ EXPOSE 8000 9999
 
 LABEL "exe.dev/login-user"="exedev"
 LABEL "exe.dev/install-shelley"="true"
+LABEL "dev.exe.pve-native"="true"
 CMD ["/usr/local/bin/init"]
