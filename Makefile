@@ -30,3 +30,9 @@ run-bash: build-exeuntu
 	  --tmpfs /tmp \
 	  --tmpfs /sys/fs/cgroup:rw \
 	  ghcr.io/boldsoftware/exeuntu:latest bash
+
+build-pve-template: ## Build a provenance-bound PVE LXC vztmpl archive from source
+	sudo ./pve/build-template.sh
+
+test-pve-source: ## Validate PVE scripts and source boundary without a rootfs build
+	./pve/test-source.sh

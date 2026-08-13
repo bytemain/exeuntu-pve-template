@@ -10,7 +10,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -tags osusergo,netgo \
         -ldflags "-X main.gitVersion=${EXEUNTU_GIT_VERSION} -extldflags=-static -s -w" \
         -o /out/exeuntu .
 
-FROM ubuntu:24.04
+FROM ubuntu:24.04 AS exeuntu
 
 # Switch from dash to bash by default.
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
@@ -347,3 +347,44 @@ EXPOSE 8000 9999
 LABEL "exe.dev/login-user"="exedev"
 LABEL "exe.dev/install-shelley"="true"
 CMD ["/usr/local/bin/init"]
+
+# PVE-native LXC target. The ordinary/default exeuntu image remains unchanged;
+# build this target explicitly with `make build-pve-template`.
+FROM exeuntu AS pve
+
+USER root
+
+COPY pve/sshd_config.conf /etc/ssh/sshd_config.d/60-exeuntu-pve.conf
+COPY pve/exeuntu-pve-firstboot /usr/local/sbin/exeuntu-pve-firstboot
+COPY pve/exeuntu-pve-firstboot.service /etc/systemd/system/exeuntu-pve-firstboot.service
+COPY pve/ssh.service.conf /etc/systemd/system/ssh.service.d/20-exeuntu-pve.conf
+
+RUN chmod 0755 /usr/local/sbin/exeuntu-pve-firstboot && \
+    chmod 0644 \
+      /etc/ssh/sshd_config.d/60-exeuntu-pve.conf \
+      /etc/systemd/system/exeuntu-pve-firstboot.service \
+      /etc/systemd/system/ssh.service.d/20-exeuntu-pve.conf && \
+    # PVE owns LXC mounts; never retain exeuntu's VM /dev/vda root mount. \
+    printf '# PVE manages LXC mounts; intentionally empty.\n' >/etc/fstab && \
+    # Clone identity and credentials are generated during first boot. \
+    : >/etc/machine-id && \
+    rm -f \
+      /var/lib/dbus/machine-id \
+      /var/lib/systemd/random-seed \
+      /root/.ssh/authorized_keys \
+      /home/exedev/.ssh/authorized_keys \
+      /etc/ssh/ssh_host_* && \
+    # exe.dev supplies a separate terminal plane; PVE-native uses sshd. \
+    systemctl unmask ssh.service && \
+    systemctl enable ssh.service exeuntu-pve-firstboot.service && \
+    # Socket activation is unnecessary and stays unavailable. \
+    systemctl mask ssh.socket && \
+    # Passwords stay locked; public-key SSH is the sole normal login path. \
+    sed -i -E 's#^root:[^:]*:#root:!:#' /etc/shadow && \
+    sed -i -E 's#^exedev:[^:]*:#exedev:!:#' /etc/shadow
+
+LABEL "dev.exe.pve-template"="true"
+
+# Keep the upstream Dockerfile's no-target behavior byte-semantically aligned
+# with exeuntu. PVE must always be requested with the explicit `pve` target.
+FROM exeuntu AS default

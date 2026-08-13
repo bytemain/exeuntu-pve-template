@@ -1,0 +1,15 @@
+[Unit]
+Description=Finalize exeuntu identity and SSH keys for PVE
+Documentation=https://github.com/bytemain/exeuntu-pve-template
+After=local-fs.target
+Before=ssh.service
+ConditionVirtualization=container
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/exeuntu-pve-firstboot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,63 @@
+name: PVE template
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - Makefile
+      - pve/**
+      - .github/workflows/pve.yml
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - Makefile
+      - pve/**
+      - .github/workflows/pve.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install source-test tools
+        run: sudo apt-get update && sudo apt-get install --yes shellcheck
+      - name: Validate PVE source
+        run: ./pve/test-source.sh
+
+  build:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Reclaim runner disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet
+          df -h /
+      - name: Install rootfs tools
+        run: sudo apt-get update && sudo apt-get install --yes jq skopeo umoci zstd
+      - name: Build template
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: sudo --preserve-env=SOURCE_COMMIT env PATH="$PATH" ./pve/build-template.sh
+      - name: Verify checksum
+        run: cd dist && sha256sum --check *.sha256
+      - name: Publish review carrier
+        uses: actions/upload-artifact@v4
+        with:
+          name: exeuntu-pve-template-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            dist/*.tar.zst
+            dist/*.sha256
+            dist/*.provenance.json
+          if-no-files-found: error
+          retention-days: 7
