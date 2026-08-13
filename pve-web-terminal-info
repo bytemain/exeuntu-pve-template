@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+state_dir=/var/lib/exeuntu-pve/web-terminal
+[ -r "$state_dir/endpoint.env" ] || {
+  echo "web terminal endpoint is not ready" >&2
+  exit 1
+}
+[ -r "$state_dir/credentials.env" ] || {
+  echo "web terminal credential is not ready" >&2
+  exit 1
+}
+
+# shellcheck disable=SC1091
+. "$state_dir/endpoint.env"
+# shellcheck disable=SC1091
+. "$state_dir/credentials.env"
+cat <<INFO
+URL: $WEB_TERMINAL_URL
+Username: exedev
+Password: $WEB_TERMINAL_PASSWORD
+TLS: self-signed for $WEB_TERMINAL_HOST; accept the browser warning after verifying this host.
+Privilege: exedev with sudo disabled inside the browser terminal; use SSH for administrative work.
+INFO

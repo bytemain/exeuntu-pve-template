@@ -10,6 +10,20 @@ RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -tags osusergo,netgo \
         -ldflags "-X main.gitVersion=${EXEUNTU_GIT_VERSION} -extldflags=-static -s -w" \
         -o /out/exeuntu .
 
+# Pin the browser terminal and exe.dev's persistent PTY multiplexer to exact,
+# checksum-verified upstream releases. Both binaries are static amd64 builds;
+# the published PVE image is currently linux/amd64 only.
+FROM docker.io/library/alpine:3.23 AS web-terminal
+ARG TTYD_VERSION=1.7.7
+ARG TTYD_SHA256=8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55
+ARG EXE_SCROLL_VERSION=v0.5.943506167
+ARG EXE_SCROLL_SHA256=5259c8f99659a2a0197b8cfe25c3094c37692a3178101046b5eff8f3ce0d0004
+RUN wget -qO /ttyd "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64" && \
+    echo "${TTYD_SHA256}  /ttyd" | sha256sum -c - && \
+    wget -qO /exe-scroll "https://github.com/boldsoftware/exe.dev/releases/download/exe-scroll/${EXE_SCROLL_VERSION}/exe-scroll-linux-amd64" && \
+    echo "${EXE_SCROLL_SHA256}  /exe-scroll" | sha256sum -c - && \
+    chmod 0755 /ttyd /exe-scroll
+
 FROM ubuntu:24.04
 
 # Switch from dash to bash by default.
@@ -88,6 +102,8 @@ RUN ARCH=$(dpkg --print-architecture) && \
     ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
 
 COPY --from=exeuntu-cli /out/exeuntu /usr/local/bin/exeuntu
+COPY --from=web-terminal /ttyd /usr/local/bin/ttyd
+COPY --from=web-terminal /exe-scroll /usr/local/bin/exe-scroll
 
 # Install uv to /usr/local/bin
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
@@ -269,13 +285,31 @@ COPY pve-firstboot.sh /usr/local/sbin/exeuntu-pve-firstboot
 COPY pve-firstboot.service /etc/systemd/system/exeuntu-pve-firstboot.service
 COPY pve-ssh.service.conf /etc/systemd/system/ssh.service.d/20-exeuntu-pve.conf
 COPY pve-sshd.conf /etc/ssh/sshd_config.d/60-exeuntu-pve.conf
+COPY pve-web-terminal-setup.sh /usr/local/sbin/exeuntu-web-terminal-setup
+COPY pve-web-terminal.sh /usr/local/sbin/exeuntu-web-terminal
+COPY pve-web-terminal-info /usr/local/bin/exeuntu-web-terminal-info
+COPY pve-web-terminal-setup.service /etc/systemd/system/exeuntu-web-terminal-setup.service
+COPY pve-web-terminal.service /etc/systemd/system/exeuntu-web-terminal.service
+COPY pve-nginx.service.conf /etc/systemd/system/nginx.service.d/20-exeuntu-pve.conf
 RUN chmod 0755 /usr/local/sbin/exeuntu-pve-firstboot && \
+    chmod 0755 \
+      /usr/local/sbin/exeuntu-web-terminal-setup \
+      /usr/local/sbin/exeuntu-web-terminal \
+      /usr/local/bin/exeuntu-web-terminal-info && \
     chmod 0644 \
       /etc/systemd/system/exeuntu-pve-firstboot.service \
       /etc/systemd/system/ssh.service.d/20-exeuntu-pve.conf \
-      /etc/ssh/sshd_config.d/60-exeuntu-pve.conf && \
+      /etc/ssh/sshd_config.d/60-exeuntu-pve.conf \
+      /etc/systemd/system/exeuntu-web-terminal-setup.service \
+      /etc/systemd/system/exeuntu-web-terminal.service \
+      /etc/systemd/system/nginx.service.d/20-exeuntu-pve.conf && \
     systemctl unmask ssh.service && \
-    systemctl enable ssh.service exeuntu-pve-firstboot.service && \
+    systemctl enable \
+      ssh.service \
+      exeuntu-pve-firstboot.service \
+      exeuntu-web-terminal-setup.service \
+      exeuntu-web-terminal.service \
+      nginx.service && \
     systemctl mask ssh.socket && \
     # PVE owns mounts; never retain exeuntu's VM /dev/vda root mount. \
     printf '# PVE manages LXC mounts; intentionally empty.\n' >/etc/fstab && \
@@ -370,7 +404,7 @@ COPY xterm-ghostty.terminfo /tmp/xterm-ghostty.terminfo
 RUN tic -x - < /tmp/xterm-ghostty.terminfo && rm /tmp/xterm-ghostty.terminfo
 
 # Expose the web server ports
-EXPOSE 8000 9999
+EXPOSE 22 80 443 8000 9999
 
 LABEL "exe.dev/login-user"="exedev"
 LABEL "exe.dev/install-shelley"="true"

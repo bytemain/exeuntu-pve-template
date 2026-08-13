@@ -1,0 +1,16 @@
+[Unit]
+Description=Provision exeuntu browser terminal identity
+Documentation=https://github.com/bytemain/exeuntu-pve-template
+Requires=exeuntu-pve-firstboot.service
+After=exeuntu-pve-firstboot.service network-online.target
+Wants=network-online.target
+Before=exeuntu-web-terminal.service
+ConditionVirtualization=container
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/exeuntu-web-terminal-setup
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

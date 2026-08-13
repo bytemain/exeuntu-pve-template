@@ -5,12 +5,14 @@ on:
     paths:
       - Dockerfile
       - pve-*
+      - README.md
       - .github/workflows/image.yml
   push:
     branches: [main]
     paths:
       - Dockerfile
       - pve-*
+      - README.md
       - .github/workflows/image.yml
 
 permissions:
@@ -25,6 +27,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: docker/setup-buildx-action@v3
+      - name: Check PVE scripts
+        run: |
+          shellcheck pve-*.sh pve-web-terminal-info scripts/test-pve-web-terminal.sh
+          scripts/test-pve-web-terminal.sh
       - name: Log in to GHCR
         if: github.event_name == 'push'
         uses: docker/login-action@v3
@@ -44,4 +50,3 @@ jobs:
           build-args: EXEUNTU_GIT_VERSION=${{ github.event.pull_request.head.sha || github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-

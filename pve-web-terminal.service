@@ -1,0 +1,33 @@
+[Unit]
+Description=Exeuntu browser terminal
+Documentation=https://github.com/bytemain/exeuntu-pve-template
+Requires=exeuntu-web-terminal-setup.service
+After=exeuntu-web-terminal-setup.service
+Before=nginx.service
+ConditionVirtualization=container
+
+[Service]
+Type=simple
+User=exedev
+Group=exedev
+WorkingDirectory=/home/exedev
+ExecStart=/usr/local/sbin/exeuntu-web-terminal
+Restart=on-failure
+RestartSec=3
+UMask=0077
+
+# A browser-session compromise must not turn the image's passwordless sudo
+# membership into root. Administrative work remains available over SSH.
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

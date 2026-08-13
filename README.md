@@ -22,4 +22,32 @@ it from root to `exedev` before sshd starts.
 CI builds this Dockerfile directly. On accepted `main`, it publishes immutable
 commit coordinates plus `main` at `ghcr.io/bytemain/exeuntu-pve`; the existing
 PVE bridge downloads and converts that OCI image. There is no separate
-exporter, vztmpl builder, or Web terminal in this fork.
+exporter or vztmpl builder.
+
+## Browser terminal
+
+Each created CT serves a normal landing page at `/` and a browser terminal at
+`/xterm/` on the same HTTPS host:
+
+```text
+nginx /xterm/ -> xterm.js (ttyd on loopback) -> exe-scroll -> persistent exedev PTY
+```
+
+The first-boot unit creates a random Basic Auth password and a self-signed TLS
+certificate for the CT's current `<ipv4-with-dashes>.sslip.io` hostname. The
+terminal refuses to start until PVE key provisioning and terminal credential
+generation have both completed. It runs as `exedev`, with `NoNewPrivileges`
+and SUID/SGID blocked, so passwordless `sudo` is deliberately unavailable in
+the browser terminal. Use SSH for administrative work.
+
+After SSHing to the CT, print the exact URL and provisioned credential:
+
+```sh
+sudo exeuntu-web-terminal-info
+```
+
+`sslip.io` supplies DNS only. A private RFC1918 address is reachable only from
+a network that can route to that address. The generated certificate is
+self-signed, so the browser will show a warning; verify the hostname before
+accepting it. A trusted certificate requires a separately authorized public
+HTTP challenge, DNS control, or a Tailscale certificate/domain.
