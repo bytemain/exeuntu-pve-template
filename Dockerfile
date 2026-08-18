@@ -269,14 +269,17 @@ COPY pve-firstboot.sh /usr/local/sbin/exeuntu-pve-firstboot
 COPY pve-firstboot.service /etc/systemd/system/exeuntu-pve-firstboot.service
 COPY pve-ssh.service.conf /etc/systemd/system/ssh.service.d/20-exeuntu-pve.conf
 COPY pve-sshd.conf /etc/ssh/sshd_config.d/60-exeuntu-pve.conf
+COPY pve-console.service /etc/systemd/system/pve-console.service
 RUN chmod 0755 /usr/local/sbin/exeuntu-pve-firstboot && \
     chmod 0644 \
       /etc/systemd/system/exeuntu-pve-firstboot.service \
       /etc/systemd/system/ssh.service.d/20-exeuntu-pve.conf \
-      /etc/ssh/sshd_config.d/60-exeuntu-pve.conf && \
+      /etc/ssh/sshd_config.d/60-exeuntu-pve.conf \
+      /etc/systemd/system/pve-console.service && \
     systemctl unmask ssh.service && \
     systemctl enable ssh.service exeuntu-pve-firstboot.service && \
     systemctl mask ssh.socket && \
+    systemctl enable pve-console.service && \
     # PVE owns mounts; never retain exeuntu's VM /dev/vda root mount. \
     printf '# PVE manages LXC mounts; intentionally empty.\n' >/etc/fstab && \
     # Every CT generates unique identity and credentials at first boot. \
