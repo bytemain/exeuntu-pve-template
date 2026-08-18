@@ -363,6 +363,20 @@ RUN ARCH=$(uname -m) && \
     chmod 0755 /home/exedev/.pi/agent/bin/fd && \
     chown -R exedev:exedev /home/exedev/.pi/agent/bin
 
+# Install ttyd (web terminal) as a pinned static binary. It backs the bridge's
+# xterm proxy: exedev's shell is served over a WebSocket from inside the CT.
+RUN TTYD_VERSION=1.7.7 && \
+    curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64" -o /usr/local/bin/ttyd && \
+    echo "8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55  /usr/local/bin/ttyd" | sha256sum -c - && \
+    chmod 0755 /usr/local/bin/ttyd
+
+# ttyd runs as exedev so the web terminal lands in the non-root user. It binds
+# loopback for now; the bridge gateway reaches it once the proxy is wired (the
+# address is finalized in the bridge work, not here).
+COPY exeuntu-ttyd.service /etc/systemd/system/exeuntu-ttyd.service
+RUN chmod 0644 /etc/systemd/system/exeuntu-ttyd.service && \
+    systemctl enable exeuntu-ttyd.service
+
 # Custom nginx config and index page (nginx is installed but disabled by default)
 COPY nginx.conf /etc/nginx/sites-available/default
 COPY index.html /var/www/html/index.html

@@ -1,0 +1,18 @@
+[Unit]
+Description=Exeuntu web terminal (ttyd, exedev)
+Documentation=https://github.com/bytemain/exeuntu-pve-template
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=exedev
+Group=exedev
+WorkingDirectory=/home/exedev
+# -W writable; -p port; -i loopback for now (the Raft gateway is the only
+# authorized path, wired in the bridge work and finalized there).
+ExecStart=/usr/local/bin/ttyd -W -p 7681 -i 127.0.0.1 bash --login
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
