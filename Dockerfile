@@ -378,4 +378,7 @@ EXPOSE 8000 9999
 LABEL "exe.dev/login-user"="exedev"
 LABEL "exe.dev/install-shelley"="true"
 LABEL "dev.exe.pve-native"="true"
-CMD ["/usr/local/bin/init"]
+# PVE-native containers run systemd directly; the Docker-only wrapper that
+# mounts cgroup2 and prints a Docker detach hint is neither wanted nor safe in
+# an unprivileged LXC. /sbin/init is systemd's canonical symlink.
+CMD ["/sbin/init"]
