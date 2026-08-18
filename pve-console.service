@@ -9,16 +9,15 @@ ConditionPathExists=/dev/console
 [Service]
 # Open the PVE console directly into the non-root exedev user with no key or
 # password. The outer surface (PVE login / Raft login) is the access boundary.
-ExecStart=-/sbin/agetty --autologin exedev --noclear --keep-baud - 115200,38400,9600 linux
+# agetty opens /dev/console directly (no stdin "-" and no serial baud rates,
+# which would make systemd hand it a pty instead of the console device).
+ExecStart=-/sbin/agetty --autologin exedev --noclear /dev/console linux
 Type=idle
 Restart=always
 RestartSec=0
-TTYPath=/dev/console
 TTYReset=yes
 TTYVHangup=yes
 UtmpIdentifier=console
-StandardInput=tty
-StandardOutput=tty
 IgnoreSIGPIPE=no
 SendSIGHUP=yes
 
