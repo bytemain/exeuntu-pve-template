@@ -59,6 +59,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirror://mirrors.ubuntu.c
 		libxext6 libxi6 libxrandr2 libgbm1 libgtk-3-0 \
 		fonts-noto-color-emoji fonts-symbola \
 		docker.io docker-buildx docker-compose-v2 \
+		fuse3 fuse-overlayfs \
 		imagemagick ffmpeg \
 		bubblewrap \
 		gh \
@@ -153,7 +154,7 @@ RUN rm /etc/systemd/system/multi-user.target.wants/console-setup.service \
 		apt-daily.timer \
 		plymouth-log.service && \
 	# systemd-logind is disabled but not masked. It's involved in populating the XDG runtime dir sockets... somehow
-	systemctl disable docker.service containerd.service getty.target systemd-logind.service tailscaled.service \
+	systemctl disable getty.target systemd-logind.service \
 		nginx.service \
                    console-getty.service \
 		   atop.service \
@@ -203,7 +204,15 @@ RUN usermod -l exedev -c "exe.dev user" ubuntu && \
 	echo 'Defaults:exedev verifypw=any' >> /etc/sudoers && \
 	# Manually enable linger, this should autopopulate /run/user/1000
 	mkdir -p /var/lib/systemd/linger && \
-	touch /var/lib/systemd/linger/exedev
+	touch /var/lib/systemd/linger/exedev && \
+	# Dockerd inside an unprivileged LXC: nested overlay mounts are not
+	# permitted, so use fuse-overlayfs for the storage driver (canonical
+	# rootless-safe choice, also used by Podman/docker rootless) instead of
+	# letting dockerd hard-fail on overlay2. IPv6/iptables stay defaults; the
+	# LXC gets its own netns and CAP_NET_ADMIN from the PVE host config.
+	mkdir -p /etc/docker && \
+	printf '%s\n' '{"storage-driver":"fuse-overlayfs","log-driver":"journald"}' > /etc/docker/daemon.json && \
+	chmod 0644 /etc/docker/daemon.json
 
 # Bake /etc/fstab so systemd-growfs@-.service resizes the root filesystem on
 # first boot after the disk is grown.
@@ -278,6 +287,8 @@ RUN chmod 0755 /usr/local/sbin/exeuntu-pve-firstboot && \
       /etc/systemd/system/pve-console.service && \
     systemctl unmask ssh.service && \
     systemctl enable ssh.service exeuntu-pve-firstboot.service && \
+    systemctl enable tailscaled.service && \
+    systemctl enable docker.service containerd.service && \
     systemctl mask ssh.socket && \
     systemctl enable pve-console.service && \
     # PVE owns mounts; never retain exeuntu's VM /dev/vda root mount. \
@@ -370,11 +381,14 @@ RUN TTYD_VERSION=1.7.7 && \
     echo "8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55  /usr/local/bin/ttyd" | sha256sum -c - && \
     chmod 0755 /usr/local/bin/ttyd
 
-# ttyd runs as exedev so the web terminal lands in the non-root user. It binds
-# loopback for now; the bridge gateway reaches it once the proxy is wired (the
-# address is finalized in the bridge work, not here).
+# ttyd runs as exedev so the web terminal lands in the non-root user. The
+# start wrapper resolves the container's eth0 private-bridge address and binds
+# there (not loopback, not 0.0.0.0) so the Raft-authenticated bridge gateway
+# is the only path in.
 COPY exeuntu-ttyd.service /etc/systemd/system/exeuntu-ttyd.service
+COPY exeuntu-ttyd-start.sh /usr/local/sbin/exeuntu-ttyd-start.sh
 RUN chmod 0644 /etc/systemd/system/exeuntu-ttyd.service && \
+    chmod 0755 /usr/local/sbin/exeuntu-ttyd-start.sh && \
     systemctl enable exeuntu-ttyd.service
 
 # Custom nginx config and index page (nginx is installed but disabled by default)
