@@ -381,11 +381,14 @@ RUN TTYD_VERSION=1.7.7 && \
     echo "8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55  /usr/local/bin/ttyd" | sha256sum -c - && \
     chmod 0755 /usr/local/bin/ttyd
 
-# ttyd runs as exedev so the web terminal lands in the non-root user. It binds
-# loopback for now; the bridge gateway reaches it once the proxy is wired (the
-# address is finalized in the bridge work, not here).
+# ttyd runs as exedev so the web terminal lands in the non-root user. The
+# start wrapper resolves the container's eth0 private-bridge address and binds
+# there (not loopback, not 0.0.0.0) so the Raft-authenticated bridge gateway
+# is the only path in.
 COPY exeuntu-ttyd.service /etc/systemd/system/exeuntu-ttyd.service
+COPY exeuntu-ttyd-start.sh /usr/local/sbin/exeuntu-ttyd-start.sh
 RUN chmod 0644 /etc/systemd/system/exeuntu-ttyd.service && \
+    chmod 0755 /usr/local/sbin/exeuntu-ttyd-start.sh && \
     systemctl enable exeuntu-ttyd.service
 
 # Custom nginx config and index page (nginx is installed but disabled by default)
