@@ -153,7 +153,7 @@ RUN rm /etc/systemd/system/multi-user.target.wants/console-setup.service \
 		apt-daily.timer \
 		plymouth-log.service && \
 	# systemd-logind is disabled but not masked. It's involved in populating the XDG runtime dir sockets... somehow
-	systemctl disable docker.service containerd.service getty.target systemd-logind.service tailscaled.service \
+	systemctl disable docker.service containerd.service getty.target systemd-logind.service \
 		nginx.service \
                    console-getty.service \
 		   atop.service \
@@ -278,6 +278,7 @@ RUN chmod 0755 /usr/local/sbin/exeuntu-pve-firstboot && \
       /etc/systemd/system/pve-console.service && \
     systemctl unmask ssh.service && \
     systemctl enable ssh.service exeuntu-pve-firstboot.service && \
+    systemctl enable tailscaled.service && \
     systemctl mask ssh.socket && \
     systemctl enable pve-console.service && \
     # PVE owns mounts; never retain exeuntu's VM /dev/vda root mount. \
